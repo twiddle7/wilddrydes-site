@@ -12,7 +12,7 @@ WildRydes.map = WildRydes.map || {};
             window.location.href = '/signin.html';
         }
     }).catch(function handleTokenError(error) {
-        alert(error);
+        // FIXED: Removed the alert so it silently redirects you to signin to refresh your token
         window.location.href = '/signin.html';
     });
 
@@ -61,9 +61,9 @@ WildRydes.map = WildRydes.map || {};
 
         WildRydes.authToken.then(function updateAuthMessage(token) {
             if (token) {
-                displayUpdate('You are authenticated. Click to see your <a href="#authTokenModal" data-toggle="modal">auth token</a>.');
-                // Safely store token in the modal text field instead of breaking the button container
-                $('#authTokenInput').val(token); 
+                displayUpdate('You are authenticated.');
+                // FIXED: Removed $('.authToken').text(token); so it NEVER erases your map!
+                console.log("Token verified successfully.");
             }
         });
 
