@@ -1,92 +1,109 @@
-/*global WildRydes _config L*/
+/*global WildRydes _config*/
 
 var WildRydes = window.WildRydes || {};
 WildRydes.map = WildRydes.map || {};
 
-(function esriMapScopeWrapper($) {
-    var map;
-    var marker;
+(function rideScopeWrapper($) {
+    var authToken;
+    WildRydes.authToken.then(function setAuthToken(token) {
+        if (token) {
+            authToken = token;
+        } else {
+            window.location.href = '/signin.html';
+        }
+    }).catch(function handleTokenError(error) {
+        alert(error);
+        window.location.href = '/signin.html';
+    });
 
-    // Center on Seattle
-    var center = {
-        latitude: 47.6062,
-        longitude: -122.3321
-    };
+    function requestUnicorn(pickupLocation) {
+        $.ajax({
+            method: 'POST',
+            url: _config.api.invokeUrl + '/ride',
+            headers: {
+                Authorization: authToken
+            },
+            data: JSON.stringify({
+                PickupLocation: {
+                    Latitude: pickupLocation.latitude,
+                    Longitude: pickupLocation.longitude
+                }
+            }),
+            contentType: 'application/json',
+            success: completeRequest,
+            error: function ajaxError(jqXHR, textStatus, errorThrown) {
+                console.error('Error requesting ride: ', textStatus, ', Details: ', errorThrown);
+                console.error('Response: ', jqXHR.responseText);
+                alert('An error occurred when requesting your unicorn:\n' + jqXHR.responseText);
+            }
+        });
+    }
 
-    var extent = {
-        minLat: 47.55,
-        maxLat: 47.65,
-        minLng: -122.40,
-        maxLng: -122.25
-    };
+    function completeRequest(result) {
+        var unicorn;
+        var pronoun;
+        console.log('Response received from API: ', result);
+        unicorn = result.Unicorn;
+        pronoun = unicorn.Gender === 'Male' ? 'his' : 'her';
+        displayUpdate(unicorn.Name + ', your ' + unicorn.Color + ' unicorn, is on ' + pronoun + ' way.');
+        animateArrival(function animateCallback() {
+            displayUpdate(unicorn.Name + ' has arrived. Giddy up!');
+            WildRydes.map.unsetLocation();
+            $('#request').prop('disabled', 'disabled');
+            $('#request').text('Set Pickup');
+        });
+    }
 
-    WildRydes.map.center = center;
-    WildRydes.map.extent = extent;
+    // Register click handler for #request button
+    $(function onDocReady() {
+        $('#request').click(handleRequestClick);
+        $(WildRydes.map).on('pickupChange', handlePickupChanged);
 
-    map = L.map('map').setView([center.latitude, center.longitude], 13);
+        WildRydes.authToken.then(function updateAuthMessage(token) {
+            if (token) {
+                displayUpdate('You are authenticated. Click to see your <a href="#authTokenModal" data-toggle="modal">auth token</a>.');
+                // Safely store token in the modal text field instead of breaking the button container
+                $('#authTokenInput').val(token); 
+            }
+        });
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(map);
-
-    map.on('click', onMapClick);
+        if (!_config.api.invokeUrl) {
+            $('#noApiMessage').show();
+        }
+    });
 
     function handlePickupChanged() {
-        var point = WildRydes.map.selectedPoint;
-        if (marker) {
-            marker.setLatLng([point.latitude, point.longitude]);
+        var requestButton = $('#request');
+        requestButton.text('Request Unicorn');
+        requestButton.prop('disabled', false);
+    }
+
+    function handleRequestClick(event) {
+        var pickupLocation = WildRydes.map.selectedPoint;
+        event.preventDefault();
+        requestUnicorn(pickupLocation);
+    }
+
+    function animateArrival(callback) {
+        var dest = WildRydes.map.selectedPoint;
+        var origin = {};
+
+        if (dest.latitude > WildRydes.map.center.latitude) {
+            origin.latitude = WildRydes.map.extent.minLat;
         } else {
-            marker = L.marker([point.latitude, point.longitude]).addTo(map);
+            origin.latitude = WildRydes.map.extent.maxLat;
         }
-        $(WildRydes.map).trigger('pickupChange');
+
+        if (dest.longitude > WildRydes.map.center.longitude) {
+            origin.longitude = WildRydes.map.extent.minLng;
+        } else {
+            origin.longitude = WildRydes.map.extent.maxLng;
+        }
+
+        WildRydes.map.animate(origin, dest, callback);
     }
 
-    function onMapClick(e) {
-        var latlng = e.latlng;
-        WildRydes.map.selectedPoint = {
-            latitude: latlng.lat,
-            longitude: latlng.lng
-        };
-        handlePickupChanged();
+    function displayUpdate(text) {
+        $('#updates').append($('<li>' + text + '</li>'));
     }
-
-    WildRydes.map.unsetLocation = function unsetLocation() {
-        if (marker) {
-            map.removeLayer(marker);
-            marker = undefined;
-        }
-    };
-
-    WildRydes.map.animate = function animate(origin, dest, callback) {
-        var unicornMarker = L.marker([origin.latitude, origin.longitude], {
-            icon: L.icon({
-                iconUrl: 'images/unicorn-icon.png',
-                iconSize: [25, 25],
-                iconAnchor: [12, 12]
-            })
-        }).addTo(map);
-
-        var startTime = performance.now();
-        var duration = 3000; // 3 seconds animation
-
-        function step(now) {
-            var progress = (now - startTime) / duration;
-            if (progress > 1) progress = 1;
-
-            var currentLat = origin.latitude + (dest.latitude - origin.latitude) * progress;
-            var currentLng = origin.longitude + (dest.longitude - origin.longitude) * progress;
-
-            unicornMarker.setLatLng([currentLat, currentLng]);
-
-            if (progress < 1) {
-                requestAnimationFrame(step);
-            } else {
-                map.removeLayer(unicornMarker);
-                callback();
-            }
-        }
-
-        requestAnimationFrame(step);
-    };
-
 }(jQuery));
