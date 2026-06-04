@@ -72,12 +72,16 @@ WildRydes.map = WildRydes.map || {};
             updateCenter(view.center);
         });
 
+        // FIXED: Extracting standard latitude and longitude from the click event
         view.on('click', function handleViewClick(event) {
-            wrMap.selectedPoint = event.mapPoint;
+            wrMap.selectedPoint = {
+                latitude: event.mapPoint.latitude,
+                longitude: event.mapPoint.longitude
+            };
             view.graphics.remove(pinGraphic);
             pinGraphic = new Graphic({
                 symbol: pinSymbol,
-                geometry: wrMap.selectedPoint
+                geometry: event.mapPoint
             });
             view.graphics.add(pinGraphic);
             $(wrMap).trigger('pickupChange');
