@@ -72,7 +72,6 @@ WildRydes.map = WildRydes.map || {};
             updateCenter(view.center);
         });
 
-        // FIXED: Extracting standard latitude and longitude from the click event
         view.on('click', function handleViewClick(event) {
             wrMap.selectedPoint = {
                 latitude: event.mapPoint.latitude,
